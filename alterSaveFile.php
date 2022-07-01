@@ -11,15 +11,15 @@ try
 
   $byteArray = readBytes($filename);
 
-  $teamList = getTeamList($byteArray);
-  echo json_encode($teamList, JSON_PRETTY_PRINT) . "\n";
+  //$teamList = getTeamList($byteArray);
+  //echo json_encode($teamList, JSON_PRETTY_PRINT) . "\n";
 
   //fillTeamHP($byteArray);
   //healTeamStatus($byteArray);
 
   //setMemberAttack($byteArray, 1, 2, 57);
 
-  writeBytes($byteArray, $filename);
+  //writeBytes($byteArray, $filename);
 }
 catch(Exception $e)
 {
@@ -166,6 +166,8 @@ function healTeamStatus(&$byteArray)
  */
 function setMemberAttack(&$byteArray, $memberOrder, $moveOrder, $moveNumber)
 {
+  global $attackList;
+
   // Get position for team member's data section
   $startPos = getTeamListAddress() + (100 * ($memberOrder-1));
 
@@ -186,16 +188,20 @@ function setMemberAttack(&$byteArray, $memberOrder, $moveOrder, $moveNumber)
     $data[$pos+1] = 1;
   }
 
+  // Find position for PP and modify it
+  $pp = $attackList->getMovePP($moveNumber);
+  $ppPos = $pos;
+  $ppPos += ((5 - $moveOrder) * 2) + ($moveOrder - 1);
+  $data[$ppPos] = $pp;
+
   // Calculate new checksum (sum of 4 blocks)
-  $checksum = array_fill(0, 12, 0);
-  for($pos = 0; $pos < 48; $pos += 12)
+  // To validate the checksum given in the encapsulating Pokémon data structure, the entirety of the four unencrypted data substructures must be summed into a 16-bit value.
+  // Also, the checksum loops. Adding the unencrypted values should give you a value greater then 0xFFFF (max size), so it just loops. To find the correct value, MOD by 65536 (decimal) or 0x10000.
+  $checksum = array_fill(0, 2, 0);
+  for($pos = 0; $pos < 48; $pos += 2)
   {
-    $block = array_slice($data, $pos, 12);
-    echo arrayToBitStr($checksum) . "\n";
-    echo arrayToBitStr($block) . "\n";
-    $checksum = addByteArrays($checksum, $block);
-    echo arrayToBitStr($checksum) . "\n";
-    echo "\n";
+    $word = array_slice($data, $pos, 2);
+    $checksum = addByteArrays($checksum, $word);
   }
   
   // Encrypt and replace old data in byte array
@@ -206,8 +212,6 @@ function setMemberAttack(&$byteArray, $memberOrder, $moveOrder, $moveNumber)
   }
 
   // Replace old checksum in byte array
-  // To validate the checksum given in the encapsulating Pokémon data structure, the entirety of the four unencrypted data substructures must be summed into a 16-bit value.
-  // Also, the checksum loops. Adding the unencrypted values should give you a value greater then 0xFFFF (max size), so it just loops. To find the correct value, MOD by 65536 (decimal) or 0x10000. Twigpi 20:51, 29 October 2007 (UTC)
   $byteArray[$startPos+28] = $checksum[0];
   $byteArray[$startPos+29] = $checksum[1];
 }
@@ -247,7 +251,7 @@ function arrayToString($array)
   return $str;
 }
 
-function arrayToInt($array) // TODO what if little endian by word instead of by byte
+function arrayToInt($array)
 {
   $int = 0;
   $place = 1;
@@ -273,7 +277,7 @@ function intToChar($int)
   return " ";
 }
 
-function arrayToBitStr($bytes) // TODO what if little endian by word instead of by byte
+function arrayToBitStr($bytes)
 {
   $bitStr = "";
   foreach($bytes as $byte)
@@ -301,7 +305,7 @@ function xor32($key, $bytes)
   return $value;
 }
 
-function addByteArrays($b1, $b2) // TODO what if little endian by word instead of by byte
+function addByteArrays($b1, $b2)
 {
   $size = count($b1);
   $sum = array();

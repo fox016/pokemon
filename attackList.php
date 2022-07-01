@@ -32,4 +32,11 @@ class AttackList
       return $this->attackList[$i-1];
     return NULL;
   }
+
+  public function getMovePP($i)
+  {
+    if(isset($this->attackList[$i-1]['pp']))
+      return $this->attackList[$i-1]['pp'];
+    return NULL;
+  }
 }
