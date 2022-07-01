@@ -10,13 +10,16 @@ try
     $filename = $argv[1];
 
   $byteArray = readBytes($filename);
+
   $teamList = getTeamList($byteArray);
   echo json_encode($teamList, JSON_PRETTY_PRINT) . "\n";
 
   //fillTeamHP($byteArray);
   //healTeamStatus($byteArray);
-  setMemberAttack($byteArray, 1, 2, 57);
-  //writeBytes($byteArray, $filename);
+
+  //setMemberAttack($byteArray, 1, 2, 57);
+
+  writeBytes($byteArray, $filename);
 }
 catch(Exception $e)
 {
@@ -128,15 +131,6 @@ function readAttacks($data, $block)
   );
 }
 
-function xor32($key, $bytes)
-{
-  $value = array();
-  foreach($bytes as $i => $b1) {
-    $value[] = $b1 ^ $key[$i%4];
-  }
-  return $value;
-}
-
 /*
  * ====================== Manipulate binary data functions
  */
@@ -182,8 +176,8 @@ function setMemberAttack(&$byteArray, $memberOrder, $moveOrder, $moveNumber)
   $data = xor32($key, array_slice($byteArray, $startPos+32, 48));
 
   // Find position for move and modify it
-  $block = getAttackBlock(arrayToInt($personality) % 24);
-  $pos = (($block-1)*12) + (($moveOrder-1)*2);
+  $attackBlock = getAttackBlock(arrayToInt($personality) % 24);
+  $pos = (($attackBlock-1)*12) + (($moveOrder-1)*2);
   if($moveNumber < 256) {
     $data[$pos] = $moveNumber;
   }
@@ -192,11 +186,30 @@ function setMemberAttack(&$byteArray, $memberOrder, $moveOrder, $moveNumber)
     $data[$pos+1] = 1;
   }
 
-  // Calculate new checksum (sum of 4 blocks) TODO
+  // Calculate new checksum (sum of 4 blocks)
+  $checksum = array_fill(0, 12, 0);
+  for($pos = 0; $pos < 48; $pos += 12)
+  {
+    $block = array_slice($data, $pos, 12);
+    echo arrayToBitStr($checksum) . "\n";
+    echo arrayToBitStr($block) . "\n";
+    $checksum = addByteArrays($checksum, $block);
+    echo arrayToBitStr($checksum) . "\n";
+    echo "\n";
+  }
   
-  // Encrypt and replace old data in byte array TODO
+  // Encrypt and replace old data in byte array
+  $encrypted = xor32($key, $data);
+  $pos = $startPos+32;
+  for($i = 0; $i < 48; $i++) {
+    $byteArray[$pos+$i] = $encrypted[$i];
+  }
 
-  // Replace old checksum in byte array TODO
+  // Replace old checksum in byte array
+  // To validate the checksum given in the encapsulating Pokémon data structure, the entirety of the four unencrypted data substructures must be summed into a 16-bit value.
+  // Also, the checksum loops. Adding the unencrypted values should give you a value greater then 0xFFFF (max size), so it just loops. To find the correct value, MOD by 65536 (decimal) or 0x10000. Twigpi 20:51, 29 October 2007 (UTC)
+  $byteArray[$startPos+28] = $checksum[0];
+  $byteArray[$startPos+29] = $checksum[1];
 }
 
 /*
@@ -234,7 +247,7 @@ function arrayToString($array)
   return $str;
 }
 
-function arrayToInt($array)
+function arrayToInt($array) // TODO what if little endian by word instead of by byte
 {
   $int = 0;
   $place = 1;
@@ -260,11 +273,11 @@ function intToChar($int)
   return " ";
 }
 
-function arrayToBitStr($bytes)
+function arrayToBitStr($bytes) // TODO what if little endian by word instead of by byte
 {
   $bitStr = "";
   foreach($bytes as $byte)
-    $bitStr .= leftPad(decbin($byte), "0", 8);
+    $bitStr .= leftPad(decbin($byte), "0", 8) . " ";
   return $bitStr;
 }
 
@@ -273,4 +286,35 @@ function leftPad($str, $pad, $len)
   while(strlen($str) < $len)
     $str = $pad . $str;
   return $str;
+}
+
+/*
+ * ====================== Binary functions
+ */
+
+function xor32($key, $bytes)
+{
+  $value = array();
+  foreach($bytes as $i => $b1) {
+    $value[] = $b1 ^ $key[$i%4];
+  }
+  return $value;
+}
+
+function addByteArrays($b1, $b2) // TODO what if little endian by word instead of by byte
+{
+  $size = count($b1);
+  $sum = array();
+  $carry = 0;
+  for($i = 0; $i < $size; $i++)
+  {
+    $digit = $b1[$i] + $b2[$i] + $carry;
+    $carry = 0;
+    while($digit > 255) {
+      $digit = $digit-256;
+      $carry++;
+    }
+    $sum[] = $digit;
+  }
+  return $sum;
 }
