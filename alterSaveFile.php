@@ -15,6 +15,7 @@ try
 
   //fillTeamHP($byteArray);
   //healTeamStatus($byteArray);
+  setMemberAttack($byteArray, 1, 2, 57);
   //writeBytes($byteArray, $filename);
 }
 catch(Exception $e)
@@ -40,7 +41,7 @@ function getTeamList($byteArray)
     $personality = array_slice($byteArray, $startPos, 4);
     $otId = array_slice($byteArray, $startPos+4, 4);
     $member['name'] = arrayToString(array_slice($byteArray, $startPos+8, 10));
-    $member['data'] = readData(array_slice($byteArray, $startPos+32, 48), $personality, $otId);
+    $member['data'] = readMemberData(array_slice($byteArray, $startPos+32, 48), $personality, $otId);
     $member['status'] = readStatus(array_slice($byteArray, $startPos+80, 4));
     $member['level'] = arrayToInt(array_slice($byteArray, $startPos+84, 1));
     $member['current_hp'] = arrayToInt(array_slice($byteArray, $startPos+86, 2));
@@ -71,16 +72,14 @@ function readStatus($statusBytes)
   return arrayToBitStr($statusBytes);
 }
 
-function readData($dataBytes, $personality, $otId)
+function readMemberData($dataBytes, $personality, $otId)
 {
   $key = xor32($personality, $otId);
   $data = xor32($key, $dataBytes);
   $order = arrayToInt($personality) % 24;
-  //echo arrayToInt($personality) . "\n";
-  //echo arrayToBitStr($personality) . "\n";
   return array(
     "growth" => readGrowth($data, $order),
-    "attacks" => readAttacks($data, $order),
+    "attacks" => readAttacks($data, getAttackBlock($order)),
   );
 }
 
@@ -101,17 +100,21 @@ function readGrowth($data, $order)
   );
 }
 
-function readAttacks($data, $order)
+function getAttackBlock($order)
+{
+  if($order >= 6 && $order <= 11)
+    return 1;
+  else if(in_array($order, array(0, 1, 14, 15, 20, 21)))
+    return 2;
+  else if(in_array($order, array(2, 4, 12, 17, 18, 23)))
+    return 3;
+  else
+    return 4;
+}
+
+function readAttacks($data, $block)
 {
   global $attackList;
-  if($order >= 6 && $order <= 11)
-    $block = 1;
-  else if(in_array($order, array(0, 1, 14, 15, 20, 21)))
-    $block = 2;
-  else if(in_array($order, array(2, 4, 12, 17, 18, 23)))
-    $block = 3;
-  else
-    $block = 4;
   $attackBlock = array_slice($data, ($block-1)*12, 12);
   return array(
     "Move 1" => $attackList->getMove(arrayToInt(array_slice($attackBlock, 0, 2))),
@@ -160,6 +163,40 @@ function healTeamStatus(&$byteArray)
     $byteArray[$startPos+83] = 0;
     $startPos += 100;
   }
+}
+
+/*
+ * @param memberOrder 1-6
+ * @param moveOrder 1-4
+ * @param moveNumber 1-354
+ */
+function setMemberAttack(&$byteArray, $memberOrder, $moveOrder, $moveNumber)
+{
+  // Get position for team member's data section
+  $startPos = getTeamListAddress() + (100 * ($memberOrder-1));
+
+  // Decrypt data block
+  $personality = array_slice($byteArray, $startPos, 4);
+  $otId = array_slice($byteArray, $startPos+4, 4);
+  $key = xor32($personality, $otId);
+  $data = xor32($key, array_slice($byteArray, $startPos+32, 48));
+
+  // Find position for move and modify it
+  $block = getAttackBlock(arrayToInt($personality) % 24);
+  $pos = (($block-1)*12) + (($moveOrder-1)*2);
+  if($moveNumber < 256) {
+    $data[$pos] = $moveNumber;
+  }
+  else {
+    $data[$pos] = $moveNumber-256;
+    $data[$pos+1] = 1;
+  }
+
+  // Calculate new checksum (sum of 4 blocks) TODO
+  
+  // Encrypt and replace old data in byte array TODO
+
+  // Replace old checksum in byte array TODO
 }
 
 /*
