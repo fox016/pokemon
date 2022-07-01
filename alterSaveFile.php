@@ -14,12 +14,13 @@ try
   //$teamList = getTeamList($byteArray);
   //echo json_encode($teamList, JSON_PRETTY_PRINT) . "\n";
 
-  //fillTeamHP($byteArray);
-  //healTeamStatus($byteArray);
+  fillTeamHP($byteArray);
+  healTeamStatus($byteArray);
+  fillTeamPP($byteArray);
 
-  //setMemberAttack($byteArray, 1, 2, 57);
+  //setMemberAttack($byteArray, 1, 1, 188);
 
-  //writeBytes($byteArray, $filename);
+  writeBytes($byteArray, $filename);
 }
 catch(Exception $e)
 {
@@ -155,6 +156,64 @@ function healTeamStatus(&$byteArray)
     $byteArray[$startPos+81] = 0;
     $byteArray[$startPos+82] = 0;
     $byteArray[$startPos+83] = 0;
+    $startPos += 100;
+  }
+}
+
+function fillTeamPP(&$byteArray)
+{
+  global $attackList;
+
+  // Get position for first team member's data section
+  $startPos = getTeamListAddress();
+
+  // For each team member
+  for($i = 0; $i < 6; $i++)
+  {
+    // Decrypt data block
+    $personality = array_slice($byteArray, $startPos, 4);
+    $otId = array_slice($byteArray, $startPos+4, 4);
+    $key = xor32($personality, $otId);
+    $data = xor32($key, array_slice($byteArray, $startPos+32, 48));
+
+    // Find position for moves and get move max PP
+    $attackBlock = getAttackBlock(arrayToInt($personality) % 24);
+    $pos = (($attackBlock-1)*12);
+    $maxPP = array();
+    for($moveOrder = 0; $moveOrder < 4; $moveOrder++)
+    {
+      $moveNumber = arrayToInt(array_slice($data, $pos + $moveOrder*2, 2));
+      if($moveNumber !== 0)
+        $maxPP[] = $attackList->getMovePP($moveNumber);
+    }
+
+    // Find position for PP and modify
+    $ppPos = $pos + 8;
+    foreach($maxPP as $max) {
+      $data[$ppPos] = $max;
+      $ppPos++;
+    }
+
+    // Calculate new checksum
+    $checksum = array_fill(0, 2, 0);
+    for($pos = 0; $pos < 48; $pos += 2)
+    {
+      $word = array_slice($data, $pos, 2);
+      $checksum = addByteArrays($checksum, $word);
+    }
+ 
+    // Encrypt and replace old data in byte array
+    $encrypted = xor32($key, $data);
+    $pos = $startPos+32;
+    for($j = 0; $j < 48; $j++) {
+      $byteArray[$pos+$j] = $encrypted[$j];
+    }
+
+    // Replace old checksum in byte array
+    $byteArray[$startPos+28] = $checksum[0];
+    $byteArray[$startPos+29] = $checksum[1];
+
+    // Onto next one
     $startPos += 100;
   }
 }
