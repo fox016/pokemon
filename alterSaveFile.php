@@ -14,11 +14,12 @@ try
   //$teamList = getTeamList($byteArray);
   //echo json_encode($teamList, JSON_PRETTY_PRINT) . "\n";
 
+  //setMemberAttack($byteArray, 1, 4, 58);
+  //setMemberAttack($byteArray, 1, 3, 57);
+
   fillTeamHP($byteArray);
   healTeamStatus($byteArray);
   fillTeamPP($byteArray);
-
-  //setMemberAttack($byteArray, 1, 1, 188);
 
   writeBytes($byteArray, $filename);
 }
@@ -359,6 +360,8 @@ function xor32($key, $bytes)
 {
   $value = array();
   foreach($bytes as $i => $b1) {
+    if(!is_numeric($b1) || !is_numeric($key[$i%4]))
+      die("not numeric: {$b1}, {$key[$i%4]}\n");
     $value[] = $b1 ^ $key[$i%4];
   }
   return $value;
@@ -371,6 +374,8 @@ function addByteArrays($b1, $b2)
   $carry = 0;
   for($i = 0; $i < $size; $i++)
   {
+    if(!is_numeric($b1[$i]) || !is_numeric($b2[$i]) || !is_numeric($carry))
+      die("not numeric: {$b1[$i]}, {$b2[$i]}, $carry\n");
     $digit = $b1[$i] + $b2[$i] + $carry;
     $carry = 0;
     while($digit > 255) {
