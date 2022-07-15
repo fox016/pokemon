@@ -10,12 +10,12 @@ try
     $filename = $argv[1];
 
   $byteArray = readBytes($filename);
-
   //$teamList = getTeamList($byteArray);
   //echo json_encode($teamList, JSON_PRETTY_PRINT) . "\n";
 
-  //setMemberAttack($byteArray, 1, 4, 58);
-  //setMemberAttack($byteArray, 1, 3, 57);
+  //setMemberAttack($byteArray, 1, 4, 94);
+  //setMemberAttack($byteArray, 1, 3, 344);
+  //setMemberAttack($byteArray, 3, 4, 15);
 
   fillTeamHP($byteArray);
   healTeamStatus($byteArray);
@@ -36,6 +36,7 @@ function getTeamList($byteArray)
   // Name start
   $startPos = 0x0001ee00;
   $nameArray = array_slice($byteArray, $startPos, 7);
+  $securityKey = array_slice($byteArray, $startPos+0x0AF8, 4);
 
   // First member data start
   $startPos = getTeamListAddress();
@@ -60,10 +61,21 @@ function getTeamList($byteArray)
     $startPos += 100;
   }
 
+  $money = array_slice($byteArray, $startPos, 4);
+  /*
+  echo arrayToBitStr($money) . "\n";
+  echo arrayToBitStr($securityKey) . "\n";
+  echo arrayToBitStr(xor32($money, $securityKey)) . "\n\n";
+  echo arrayToInt($money) . "\n";
+  echo arrayToInt($securityKey) . "\n";
+   */
+
   $teamList = array(
     "trainer_name" => arrayToString($nameArray),
+    //"money" => arrayToInt(xor32($money, $securityKey)), // Supposed to be 64922
     "members" => $members
   );
+  //echo $teamList['money'] . "\n";
   return $teamList;
 }
 
@@ -242,6 +254,7 @@ function setMemberAttack(&$byteArray, $memberOrder, $moveOrder, $moveNumber)
   $pos = (($attackBlock-1)*12) + (($moveOrder-1)*2);
   if($moveNumber < 256) {
     $data[$pos] = $moveNumber;
+    $data[$pos+1] = 0;
   }
   else {
     $data[$pos] = $moveNumber-256;
