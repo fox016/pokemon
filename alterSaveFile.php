@@ -13,8 +13,7 @@ try
   //$teamList = getTeamList($byteArray);
   //echo json_encode($teamList, JSON_PRETTY_PRINT) . "\n";
 
-  //setMemberAttack($byteArray, 1, 4, 94);
-  //setMemberAttack($byteArray, 1, 3, 344);
+  setMemberAttack($byteArray, 6, 4, 94);
   //setMemberAttack($byteArray, 3, 4, 15);
 
   fillTeamHP($byteArray);
