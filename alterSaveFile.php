@@ -13,8 +13,7 @@ try
   //$teamList = getTeamList($byteArray);
   //echo json_encode($teamList, JSON_PRETTY_PRINT) . "\n";
 
-  setMemberAttack($byteArray, 6, 4, 94);
-  //setMemberAttack($byteArray, 3, 4, 15);
+  //setMemberAttack($byteArray, 1, 1, 94);
 
   fillTeamHP($byteArray);
   healTeamStatus($byteArray);
@@ -60,21 +59,11 @@ function getTeamList($byteArray)
     $startPos += 100;
   }
 
-  $money = array_slice($byteArray, $startPos, 4);
-  /*
-  echo arrayToBitStr($money) . "\n";
-  echo arrayToBitStr($securityKey) . "\n";
-  echo arrayToBitStr(xor32($money, $securityKey)) . "\n\n";
-  echo arrayToInt($money) . "\n";
-  echo arrayToInt($securityKey) . "\n";
-   */
-
   $teamList = array(
     "trainer_name" => arrayToString($nameArray),
-    //"money" => arrayToInt(xor32($money, $securityKey)), // Supposed to be 64922
     "members" => $members
   );
-  //echo $teamList['money'] . "\n";
+
   return $teamList;
 }
 
@@ -94,25 +83,8 @@ function readMemberData($dataBytes, $personality, $otId)
   $data = xor32($key, $dataBytes);
   $order = arrayToInt($personality) % 24;
   return array(
-    "growth" => readGrowth($data, $order),
+    "growth" => readGrowth($data, getGrowthBlock($order)),
     "attacks" => readAttacks($data, getAttackBlock($order)),
-  );
-}
-
-function readGrowth($data, $order)
-{
-  if($order <= 5)
-    $block = 1;
-  else if(in_array($order, array(6, 7, 12, 13, 18, 19)))
-    $block = 2;
-  else if(in_array($order, array(8, 10, 14, 16, 20, 22)))
-    $block = 3;
-  else
-    $block = 4;
-  $growthBlock = array_slice($data, ($block-1)*12, 12);
-  return array(
-    "species" => arrayToInt(array_slice($growthBlock, 0, 2)),
-    "experience" => arrayToInt(array_slice($growthBlock, 4, 4)),
   );
 }
 
@@ -141,6 +113,27 @@ function readAttacks($data, $block)
     "PP 2" => arrayToInt(array_slice($attackBlock, 9, 1)),
     "PP 3" => arrayToInt(array_slice($attackBlock, 10, 1)),
     "PP 4" => arrayToInt(array_slice($attackBlock, 11, 1)),
+  );
+}
+
+function getGrowthBlock($order)
+{
+  if($order <= 5)
+    return 1;
+  else if(in_array($order, array(6, 7, 12, 13, 18, 19)))
+    return 2;
+  else if(in_array($order, array(8, 10, 14, 16, 20, 22)))
+    return 3;
+  else
+    return 4;
+}
+
+function readGrowth($data, $block)
+{
+  $growthBlock = array_slice($data, ($block-1)*12, 12);
+  return array(
+    "species" => arrayToInt(array_slice($growthBlock, 0, 2)),
+    "experience" => arrayToInt(array_slice($growthBlock, 4, 4)),
   );
 }
 
@@ -286,6 +279,60 @@ function setMemberAttack(&$byteArray, $memberOrder, $moveOrder, $moveNumber)
   // Replace old checksum in byte array
   $byteArray[$startPos+28] = $checksum[0];
   $byteArray[$startPos+29] = $checksum[1];
+}
+
+function setSpecies(&$byteArray, $memberOrder, $species, $stats)
+{
+  // Get position for team member's data section
+  $startPos = getTeamListAddress() + (100 * ($memberOrder-1));
+
+  // Decrypt data block
+  $personality = array_slice($byteArray, $startPos, 4);
+  $otId = array_slice($byteArray, $startPos+4, 4);
+  $key = xor32($personality, $otId);
+  $data = xor32($key, array_slice($byteArray, $startPos+32, 48));
+
+  // Find position for species number and modify it
+  $growthBlock = getGrowthBlock(arrayToInt($personality) % 24);
+  $pos = (($growthBlock-1)*12);
+  if($species < 256) {
+    $data[$pos] = $species;
+    $data[$pos+1] = 0;
+  }
+  else {
+    $data[$pos] = $species-256;
+    $data[$pos+1] = 1;
+  }
+
+  // Calculate new checksum (sum of 4 blocks)
+  // To validate the checksum given in the encapsulating Pokémon data structure, the entirety of the four unencrypted data substructures must be summed into a 16-bit value.
+  // Also, the checksum loops. Adding the unencrypted values should give you a value greater then 0xFFFF (max size), so it just loops. To find the correct value, MOD by 65536 (decimal) or 0x10000.
+  $checksum = array_fill(0, 2, 0);
+  for($pos = 0; $pos < 48; $pos += 2)
+  {
+    $word = array_slice($data, $pos, 2);
+    $checksum = addByteArrays($checksum, $word);
+  }
+  
+  // Encrypt and replace old data in byte array
+  $encrypted = xor32($key, $data);
+  $pos = $startPos+32;
+  for($i = 0; $i < 48; $i++) {
+    $byteArray[$pos+$i] = $encrypted[$i];
+  }
+
+  // Replace old checksum in byte array
+  $byteArray[$startPos+28] = $checksum[0];
+  $byteArray[$startPos+29] = $checksum[1];
+ 
+  // Set pokemon stats
+  $byteArray[$startPos+88] = $stats[0]; // Total HP
+  $byteArray[$startPos+86] = $stats[0]; // Current HP
+  $byteArray[$startPos+90] = $stats[1]; // Attack
+  $byteArray[$startPos+92] = $stats[2]; // Defense
+  $byteArray[$startPos+96] = $stats[3]; // Sp Attack
+  $byteArray[$startPos+98] = $stats[4]; // Sp Defense
+  $byteArray[$startPos+94] = $stats[5]; // Speed
 }
 
 /*

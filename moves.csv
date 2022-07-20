@@ -244,8 +244,8 @@
 244,Psych Up,Normal,Status,10,—,—,II
 245,Extreme Speed,Normal,Physical,5,80,100%,II
 246,Ancient Power,Rock,Special,5,60,100%,II
-247,Shadow Ball,Ghost,Special,15,80,100%,II
-248,Future Sight,Psychic,Special,10,120,100%,II
+247,Shadow Ball,Ghost,Physical,15,80,100%,II
+248,Future Sight,Psychic,Special,15,80,90%,II
 249,Rock Smash,Fighting,Physical,15,40,100%,II
 250,Whirlpool,Water,Special,15,35,85%,II
 251,Beat Up,Dark,Physical,10,—,100%,II
